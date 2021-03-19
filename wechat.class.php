@@ -87,11 +87,13 @@ class core_lib_wechat
 	private $_charset = 'utf-8';
 	public $openid;
 	public $refresh_token;
+	public $sub_mch_id;
 
 	public function __construct($options)
 	{
 		$this->token = isset($options['token'])?$options['token']:'';
 		$this->appid = isset($options['appid'])?$options['appid']:'';
+		$this->sub_mch_id = isset($options['sub_mch_id'])?$options['sub_mch_id']:'';
 		$this->appsecret = isset($options['appsecret'])?$options['appsecret']:'';
 		$this->debug = isset($options['debug'])?$options['debug']:false;
 		$this->_logcallback = isset($options['logcallback'])?$options['logcallback']:false;
@@ -154,20 +156,12 @@ class core_lib_wechat
     }
     public function getWxAccessToken()
     {
-        $this->access_token = \Yii::$app->cache->get('wechat_access_token');
-        if(!empty($this->access_token)){
-            $access = $this->access_token;
-        }else{
-            $res = $this->http_get('https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid='.$this->appid.'&secret='.$this->appsecret);
-            $result = json_decode($res,true);
-            if( $result['access_token'] ){
-                $access = $result['access_token'];
-                \Yii::$app->cache->set('wechat_access_token', $access, 7100);
-            }else{
-                $access = '';
-            }
-        }
-        return $access;
+        $access_token = get_wechat_access_token($this->appid, $this->appsecret);
+		if ($access_token) {
+			$this->access_token = $access_token;
+			return $access_token;
+		}
+		return false;
     }
     public function checkAccessToken(){
 
@@ -550,7 +544,7 @@ class core_lib_wechat
 		if (empty($msg))
 			$msg = $this->_msg;
 		$xmldata=  $this->xml_encode($msg);
-		\Yii::error(json_encode($xmldata));
+		// \Yii::error(json_encode($xmldata));
 		$this->log($xmldata);
 		if ($return)
 			return $xmldata;
@@ -684,23 +678,13 @@ class core_lib_wechat
 	 */
 	public function checkAuth($appid='',$appsecret=''){
 		if (!$appid || !$appsecret) {
-			$appid = $this->appid;
-			$appsecret = $this->appsecret;
-		}
-		//TODO: get the cache access_token
-		$result = $this->http_get(self::API_URL_PREFIX.self::AUTH_URL.'appid='.$appid.'&secret='.$appsecret);
-		if ($result)
-		{
-			$json = json_decode($result,true);
-			if (!$json || isset($json['errcode'])) {
-				$this->errCode = $json['errcode'];
-				$this->errMsg = $json['errmsg'];
-				return false;
-			}
-			$this->access_token = $json['access_token'];
-			$expire = $json['expires_in'] ? intval($json['expires_in'])-100 : 3600;
-			//TODO: cache access_token
-			return $this->access_token;
+            $appid = $this->appid;
+            $appsecret = $this->appsecret;
+        }
+		$access_token = get_wechat_access_token($appid, $appsecret);
+		if ($access_token) {
+			$this->access_token = $access_token;
+			return $access_token;
 		}
 		return false;
 	}
